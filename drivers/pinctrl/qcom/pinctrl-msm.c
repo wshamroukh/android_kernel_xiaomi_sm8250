@@ -12,6 +12,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/wakeup_reason.h>
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/io.h>
@@ -1467,8 +1468,6 @@ static void msm_pinctrl_resume(void)
 	const char *name = "null";
 	struct msm_pinctrl *pctrl = msm_pinctrl_data;
 
-	if (!msm_show_resume_irq_mask)
-		return;
 
 	raw_spin_lock_irqsave(&pctrl->lock, flags);
 	for_each_set_bit(i, pctrl->enabled_irqs, pctrl->chip.ngpio) {
@@ -1482,7 +1481,9 @@ static void msm_pinctrl_resume(void)
 			else if (desc->action && desc->action->name)
 				name = desc->action->name;
 
-			pr_warn("%s: %d triggered %s\n", __func__, irq, name);
+			log_irq_wakeup_reason(irq);
+			if (msm_show_resume_irq_mask)
+				pr_warn("%s: %d triggered %s\n", __func__, irq, name);
 		}
 	}
 	raw_spin_unlock_irqrestore(&pctrl->lock, flags);

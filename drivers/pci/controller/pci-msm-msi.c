@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.*/
 
+#include <linux/wakeup_reason.h>
 #include <linux/interrupt.h>
 #include <linux/iommu.h>
 #include <linux/ipc_logging.h>
@@ -49,6 +50,11 @@ static void msm_msi_handler(struct irq_desc *desc)
 
 	msi = irq_desc_get_handler_data(desc);
 	virq = irq_find_mapping(msi->inner_domain, irq_desc_get_irq(desc));
+
+	/* Report the real device IRQ (e.g. wlan_wake_irq) as the wake reason
+	 * instead of the unnamed GIC parent line. No-op outside resume. */
+	if (virq)
+		log_threaded_irq_wakeup_reason(virq, irq_desc_get_irq(desc));
 
 	generic_handle_irq(virq);
 
