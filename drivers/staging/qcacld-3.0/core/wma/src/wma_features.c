@@ -2410,6 +2410,8 @@ static const char *wma_vdev_type_str(uint32_t vdev_type)
 	}
 }
 
+extern void hdd_note_wow_data_wakeup(void);
+
 static int wma_wake_event_packet(
 	t_wma_handle *wma,
 	WMI_WOW_WAKEUP_HOST_EVENTID_param_tlvs *event_param,
@@ -2460,6 +2462,7 @@ static int wma_wake_event_packet(
 	case WOW_REASON_BPF_ALLOW:
 	case WOW_REASON_PATTERN_MATCH_FOUND:
 	case WOW_REASON_RA_MATCH:
+		hdd_note_wow_data_wakeup();
 	case WOW_REASON_RECV_MAGIC_PATTERN:
 	case WOW_REASON_PACKET_FILTER_MATCH:
 		WMA_LOGD("Wake event packet:");

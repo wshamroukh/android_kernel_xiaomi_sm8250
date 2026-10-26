@@ -73,6 +73,37 @@
 #include "nan_ucfg_api.h"
 #include <wlan_hdd_sar_limits.h>
 
+/*
+ * Mark the first RX packet after a WoW data-packet wakeup so netd's
+ * wakeupctrl_mangle_INPUT rule (mark 0x80000000) logs it and Android
+ * can attribute wlan_wake_irq wakeups to the receiving UID.
+ */
+#define HDD_WAKEUP_PKT_MARK		0x80000000
+#define HDD_WAKEUP_PKT_WINDOW_MS	500
+
+static atomic_t hdd_wow_wakeup_pending = ATOMIC_INIT(0);
+static unsigned long hdd_wow_wakeup_ts;
+
+void hdd_note_wow_data_wakeup(void);
+void hdd_note_wow_data_wakeup(void)
+{
+	WRITE_ONCE(hdd_wow_wakeup_ts, jiffies);
+	smp_wmb();
+	atomic_set(&hdd_wow_wakeup_pending, 1);
+}
+
+static inline void hdd_mark_wakeup_pkt(struct sk_buff *skb)
+{
+	if (likely(!atomic_read(&hdd_wow_wakeup_pending)))
+		return;
+	if (!atomic_xchg(&hdd_wow_wakeup_pending, 0))
+		return;
+	smp_rmb();
+	if (time_before(jiffies, READ_ONCE(hdd_wow_wakeup_ts) +
+			msecs_to_jiffies(HDD_WAKEUP_PKT_WINDOW_MS)))
+		skb->mark |= HDD_WAKEUP_PKT_MARK;
+}
+
 #if defined(QCA_LL_TX_FLOW_CONTROL_V2) || defined(QCA_LL_PDEV_TX_FLOW_CONTROL)
 /*
  * Mapping Linux AC interpretation to SME AC.
@@ -2348,6 +2379,7 @@ QDF_STATUS hdd_rx_packet_cbk(void *adapter_context,
 
 		skb->dev = adapter->dev;
 		skb->protocol = eth_type_trans(skb, skb->dev);
+		hdd_mark_wakeup_pkt(skb);
 		++adapter->hdd_stats.tx_rx_stats.rx_packets[cpu_index];
 		++adapter->stats.rx_packets;
 		adapter->stats.rx_bytes += skb->len;
