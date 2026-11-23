@@ -1555,9 +1555,16 @@ static int fg_get_property(struct power_supply *psy, enum power_supply_property 
 	case POWER_SUPPLY_PROP_FASTCHARGE_MODE:
 		val->intval = bq->fast_mode;
 		break;
-	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
-		val->intval = bq->batt_fcc * 2000;
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER: {
+		/* RemainingCapacity (mAh, per 2S pack) -> uAh, same x2 scaling as FCC */
+		static int last_cc;
+		int rm = fg_read_rm(bq);
+
+		if (rm > 0)
+			last_cc = rm * 2000;
+		val->intval = last_cc ? last_cc : bq->batt_fcc * 2000;
 		break;
+	}
 	case POWER_SUPPLY_PROP_TERMINATION_CURRENT:
 		val->intval = bq->term_curr;
 		break;
